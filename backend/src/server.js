@@ -1,0 +1,57 @@
+const express = require("express");
+const app = express();
+const cors = require("cors");
+const port = process.env.PORT || 3000;
+require("dotenv").config();
+const cookieParser = require("cookie-parser");
+const errorHandler = require("./lib/error");
+const sequelize = require("./lib/db");
+
+// Import models before associations
+require("./models/userModel");
+require("./models/documentModel");
+require("./models/emergencyModel");
+const initAssociations = require("./models/initAssociations");
+initAssociations(); // Setup associations
+
+// Routes
+const authRoutes = require("./routes/authRoutes");
+const profileRoutes = require("./routes/profileRoutes");
+const qrRoutes = require("./routes/qrRoutes");
+const documentRoutes = require("./routes/documentRoutes");
+const emergencyRoutes = require("./routes/emergencyRoutes");
+const chatbot = require('./routes/chatbotRoutes');
+
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+app.use(cookieParser());
+
+// Mount API routes
+app.use("/api/v1/users", authRoutes);
+app.use("/api/v1/profile", profileRoutes);
+app.use("/api/v1/qr", qrRoutes);
+app.use("/api/v1/documents", documentRoutes);
+app.use("/api/v1/emergency", emergencyRoutes);
+app.use("/api/v1/chat-bot", chatbot);
+
+
+app.use(errorHandler);
+
+// Sync DB and start server
+sequelize
+  .sync()
+  .then(() => {
+    console.log("DB connected successfully");
+    app.listen(port, () => {
+      console.log(`Server running on http://localhost:${port}`);
+    });
+  })
+  .catch((err) => {
+    console.error("DB connection failed:", err);
+  });

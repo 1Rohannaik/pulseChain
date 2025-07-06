@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# environment
+.env
+.env.*.local
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# databases
+*.sqlite
+*.db
+
+# uploads
+src/Uploads/
+
+# coverage
+coverage/
+
+# compiled output
+dist/
+
+# IDEs & misc
+.vscode/
+.DS_Store
+.idea/
+*.pem
