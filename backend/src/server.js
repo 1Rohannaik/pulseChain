@@ -27,8 +27,8 @@ const chatbotRoutes = require("./routes/chatbotRoutes");
 // CORS Middleware
 app.use(
   cors({
-    origin: ["https://pulsechain-1.onrender.com", "http://localhost:5173"],, // Frontend origin
-    credentials: true, // Allows cookies and auth headers
+    origin: ["https://pulsechain-1.onrender.com", "http://localhost:5173"],
+    credentials: true, 
   })
 );
 
