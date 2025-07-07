@@ -26,12 +26,14 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdf-poppler": "^0.2.1",
-    "pdf2pic": "^3.2.0",
+    "pdf2json": "^3.1.6",
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
     "sequelize": "^6.37.7",
     "sharp": "^0.34.2",
     "tesseract.js": "^6.0.1",
-    "twilio": "^5.7.2"
+    "twilio": "^5.7.2",
+    "uuid": "^11.1.0",
+    "validator": "^13.15.15"
   }
 }
