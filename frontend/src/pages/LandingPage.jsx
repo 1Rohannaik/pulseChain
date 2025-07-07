@@ -181,7 +181,7 @@ function LandingPage() {
             {/* Testimonial 1 */}
             <div className="card p-6 bg-white dark:bg-neutral-700 rounded-lg shadow">
               <div className="mb-4">
-                <div class="flex items-center mb-4">
+                <div className="flex items-center mb-4">
                   <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                     <span className="text-primary-600 dark:text-primary-300 font-bold">
                       DR
@@ -207,7 +207,7 @@ function LandingPage() {
             {/* Testimonial 2 */}
             <div className="card p-6 bg-white dark:bg-neutral-700 rounded-lg shadow">
               <div className="mb-4">
-                <div class="flex items-center mb-4">
+                <div className="flex items-center mb-4">
                   <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                     <span className="text-primary-600 dark:text-primary-300 font-bold">
                       EW
@@ -233,7 +233,7 @@ function LandingPage() {
             {/* Testimonial 3 */}
             <div className="card p-6 bg-white dark:bg-neutral-700 rounded-lg shadow">
               <div className="mb-4">
-                <div class="flex items-center mb-4">
+                <div className="flex items-center mb-4">
                   <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                     <span className="text-primary-600 dark:text-primary-300 font-bold">
                       JS
