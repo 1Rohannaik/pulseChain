@@ -2,8 +2,11 @@ import { Link } from "react-router-dom";
 import { FaRegHospital, FaQrcode, FaFileUpload } from "react-icons/fa";
 import { FiArrowRight } from "react-icons/fi";
 import Chatbot from "../chat/Chatbot";
+import { useAuth } from "../context/AuthContext";
 
 function LandingPage() {
+  const { isMedical } = useAuth(); // 👈 Get role from auth context
+
   return (
     <div>
       {/* Hero section */}
@@ -26,12 +29,16 @@ function LandingPage() {
                 >
                   Create Profile
                 </Link>
-                <Link
-                  to="/scan"
-                  className="btn bg-primary-800 text-white hover:bg-primary-900 transition-colors duration-300"
-                >
-                  Scan QR Code
-                </Link>
+
+                {/* ✅ Only show this button for medical professionals */}
+                {isMedical && (
+                  <Link
+                    to="/scan"
+                    className="btn bg-primary-800 text-white hover:bg-primary-900 transition-colors duration-300"
+                  >
+                    Scan QR Code
+                  </Link>
+                )}
               </div>
             </div>
             <div className="md:w-1/2 flex justify-center">
@@ -174,7 +181,7 @@ function LandingPage() {
             {/* Testimonial 1 */}
             <div className="card p-6 bg-white dark:bg-neutral-700 rounded-lg shadow">
               <div className="mb-4">
-                <div className="flex items-center mb-4">
+                <div class="flex items-center mb-4">
                   <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                     <span className="text-primary-600 dark:text-primary-300 font-bold">
                       DR
@@ -200,7 +207,7 @@ function LandingPage() {
             {/* Testimonial 2 */}
             <div className="card p-6 bg-white dark:bg-neutral-700 rounded-lg shadow">
               <div className="mb-4">
-                <div className="flex items-center mb-4">
+                <div class="flex items-center mb-4">
                   <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                     <span className="text-primary-600 dark:text-primary-300 font-bold">
                       EW
@@ -226,7 +233,7 @@ function LandingPage() {
             {/* Testimonial 3 */}
             <div className="card p-6 bg-white dark:bg-neutral-700 rounded-lg shadow">
               <div className="mb-4">
-                <div className="flex items-center mb-4">
+                <div class="flex items-center mb-4">
                   <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
                     <span className="text-primary-600 dark:text-primary-300 font-bold">
                       JS
@@ -255,4 +262,5 @@ function LandingPage() {
   );
 }
 
-export default LandingPage;
+export default LandingPage; 
+

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom"; // 👈 useSearchParams instead of useParams
 import {
   FiAlertTriangle,
   FiPhone,
@@ -10,32 +10,39 @@ import {
 import { jsPDF } from "jspdf";
 
 function EmergencyAccessPage() {
-  const { userId } = useParams();
+  const [searchParams] = useSearchParams(); // 👈
+  const token = searchParams.get("token"); // 👈 extract token from query string
+
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-useEffect(() => {
-  const fetchPatientData = async () => {
-    try {
-      const res = await fetch(
-        `http://localhost:3000/api/v1/emergency/${userId}`
-      );
-      if (!res.ok) throw new Error("Invalid QR Code or user ID");
-      const data = await res.json();
-      setPatient(data);
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setError(err.message);
-    } finally {
+  useEffect(() => {
+    const fetchPatientData = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:3000/api/v1/emergency/info-from-token?token=${token}`
+        );
+        if (!res.ok) throw new Error("Invalid or expired QR token");
+        const data = await res.json();
+        setPatient(data);
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (token) {
+      fetchPatientData();
+    } else {
+      setError("Missing token in URL");
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  fetchPatientData();
-}, [userId]);
-
-
+  // ... rest of your component remains unchanged ...
 
   const downloadEmergencySummary = () => {
     if (!patient) return;

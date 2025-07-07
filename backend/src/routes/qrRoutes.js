@@ -1,16 +1,20 @@
-// routes/qrRoutes.js
 const express = require("express");
 const QRCode = require("qrcode");
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 
-// Example: GET /api/v1/qr/:userId
 router.get("/:userId", async (req, res) => {
   const { userId } = req.params;
-  const emergencyUrl = `http://localhost:5173/emergency/${userId}`;
+
+  const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: "5m",
+  });
+
+  const qrUrl = `http://localhost:5173/emergency/access?token=${token}`;
 
   try {
-    const qrDataURL = await QRCode.toDataURL(emergencyUrl);
-    res.json({ qrCode: qrDataURL }); 
+    const qrDataURL = await QRCode.toDataURL(qrUrl);
+    res.json({ qrCode: qrDataURL, token });
   } catch (err) {
     console.error("QR generation failed:", err);
     res.status(500).json({ error: "QR generation failed" });

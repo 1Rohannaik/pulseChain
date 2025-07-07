@@ -12,6 +12,7 @@ function PatientQRCode() {
   const [emergencyUrl, setEmergencyUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(300); // 5 minutes in seconds
 
   // Fetch QR code Data URL from API
   useEffect(() => {
@@ -23,7 +24,6 @@ function PatientQRCode() {
       }
 
       const qrApiUrl = `http://localhost:3000/api/v1/qr/${currentUser.id}`;
-      console.log("Fetching QR code from:", qrApiUrl); // Debug log
       try {
         const response = await fetch(qrApiUrl, {
           method: "GET",
@@ -38,25 +38,55 @@ function PatientQRCode() {
         }
 
         const data = await response.json();
-        console.log("GET /api/v1/qr/:userId response:", data); // Debug log
         setQrCodeDataUrl(data.qrCode || "");
-        setEmergencyUrl(`http://localhost:5173/emergency/${currentUser.id}`); // Match backend's emergency URL
+        setEmergencyUrl(
+          `http://localhost:5173/emergency/access?token=${data.token}`
+        );
+        setSecondsLeft(300); // Reset countdown to 5 minutes after successful fetch
       } catch (err) {
         console.error("Error fetching QR code:", err);
         setError(`Failed to load QR code: ${err.message}`);
-        // Fallback to generating QR code client-side
-        setEmergencyUrl(`http://localhost:5173/emergency/${currentUser.id}`);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchQRCodeUrl();
+    fetchQRCodeUrl(); // Initial fetch
+
+    // Set up interval to refresh QR code every 4 minutes (240,000ms)
+    const refreshInterval = setInterval(fetchQRCodeUrl, 4 * 60 * 1000);
+
+    return () => {
+      clearInterval(refreshInterval); // Clean up interval on component unmount
+    };
   }, [currentUser]);
+
+  // Countdown timer for next refresh
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          // When countdown reaches 0, reset to 5 minutes (300 seconds)
+          return 300;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer); // Clean up timer on component unmount
+  }, []);
+
+  // Format seconds into MM:SS for display
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
 
   const downloadQRCode = async () => {
     if (!qrCodeRef.current) return;
-
     try {
       const dataUrl = await toPng(qrCodeRef.current);
       const link = document.createElement("a");
@@ -73,18 +103,15 @@ function PatientQRCode() {
 
   const downloadEmergencyCard = async () => {
     if (!qrCodeRef.current) return;
-
     try {
       const dataUrl = await toPng(qrCodeRef.current);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: [85, 55], // Standard credit card size
+        format: [85, 55],
       });
-
       pdf.addImage(dataUrl, "PNG", 5, 5, 30, 30);
       pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
       pdf.text("Emergency Medical Info", 40, 10);
       pdf.setFontSize(8);
       pdf.text(`Name: ${currentUser?.name || "Not specified"}`, 40, 15);
@@ -105,7 +132,6 @@ function PatientQRCode() {
 
   const printQRCode = async () => {
     if (!qrCodeRef.current) return;
-
     try {
       const dataUrl = await toPng(qrCodeRef.current);
       const printFrame = document.createElement("iframe");
@@ -117,27 +143,14 @@ function PatientQRCode() {
           <head>
             <title>PulseChain Emergency QR Code</title>
             <style>
-              body {
-                text-align: center;
-                font-family: Arial, sans-serif;
-                padding: 20px;
-              }
-              .card {
-                border: 1px solid #ccc;
-                padding: 15px;
-                display: inline-block;
-                margin: 0 auto;
-              }
-              img {
-                max-width: 150px;
-              }
-              h2, p {
-                margin: 5px 0;
-              }
+              body { text-align: center; font-family: Arial; padding: 20px; }
+              .card { border: 1px solid #ccc; padding: 15px; display: inline-block; margin: 0 auto; }
+              img { max-width: 150px; }
+              h2, p { margin: 5px 0; }
             </style>
           </head>
           <body>
-            <div class="card">
+            <div className="card">
               <h2>Medical Emergency Info</h2>
               <img src="${dataUrl}" alt="Emergency QR Code" />
               <p><strong>Name:</strong> ${
@@ -187,13 +200,17 @@ function PatientQRCode() {
         Your Emergency QR Code
       </h3>
 
-      <div className="flex flex-col items-center">
-        <div ref={qrCodeRef} className="bg-white p-4 rounded-lg shadow-sm">
+      <div className="flex flex-col items-center max-w-full">
+        <div
+          ref={qrCodeRef}
+          className="bg-white p-4 rounded-lg shadow-sm overflow-hidden"
+          style={{ width: "fit-content", maxWidth: "100%" }}
+        >
           {qrCodeDataUrl ? (
             <img
               src={qrCodeDataUrl}
               alt="Emergency QR Code"
-              style={{ width: 180, height: 180 }}
+              style={{ maxWidth: "100%", height: "auto" }}
             />
           ) : (
             <QRCode
@@ -205,37 +222,37 @@ function PatientQRCode() {
           )}
         </div>
 
-        <div className="mt-4 text-center">
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-1">
+        <div className="mt-4 text-center w-full">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
             Scan this QR code to access your emergency medical information.
           </p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-4">
+          <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-2 break-words">
             Emergency URL: {emergencyUrl}
+          </p>
+          <p className="text-xs text-primary-600 dark:text-primary-400 mb-4">
+            QR code refreshes in: {formatTime(secondsLeft)}
           </p>
 
           <div className="flex flex-wrap justify-center gap-2">
             <button
               onClick={downloadQRCode}
-              className="btn btn-secondary text-sm py-2"
+              className="btn btn-secondary text-sm py-2 px-4"
             >
-              <FiDownload className="mr-2 h-4 w-4" />
-              Download QR
+              <FiDownload className="mr-2 h-4 w-4" /> Download QR
             </button>
 
             <button
               onClick={downloadEmergencyCard}
-              className="btn btn-primary text-sm py-2"
+              className="btn btn-primary text-sm py-2 px-4"
             >
-              <FiDownload className="mr-2 h-4 w-4" />
-              Emergency Card PDF
+              <FiDownload className="mr-2 h-4 w-4" /> Emergency Card PDF
             </button>
 
             <button
               onClick={printQRCode}
-              className="btn btn-secondary text-sm py-2"
+              className="btn btn-secondary text-sm py-2 px-4"
             >
-              <FiPrinter className="mr-2 h-4 w-4" />
-              Print QR
+              <FiPrinter className="mr-2 h-4 w-4" /> Print QR
             </button>
           </div>
         </div>
