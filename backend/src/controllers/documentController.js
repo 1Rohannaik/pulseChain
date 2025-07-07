@@ -2,216 +2,140 @@ const Document = require("../models/documentModel");
 const pdfParse = require("pdf-parse");
 const fs = require("fs").promises;
 const path = require("path");
-const { v4: uuidv4 } = require("uuid");
-const validator = require("validator");
-
-// Constants
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_MIME_TYPES = ["application/pdf"];
-const UPLOADS_DIR = path.join(__dirname, "../uploads");
-
-// Ensure uploads directory exists
-fs.mkdir(UPLOADS_DIR, { recursive: true }).catch(err => {
-  console.error("Failed to create uploads directory:", err);
-});
 
 exports.uploadDocument = async (req, res) => {
-  let tempFilePath = null;
+  let filePathToCleanup = null;
 
   try {
-    // Validate request
-    if (!req.file) {
+    const file = req.file;
+    const userId = req.user.id;
+
+    if (!file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const { file, user, body } = req;
-    tempFilePath = file.path;
-
-    // Validate file
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      return res.status(400).json({ message: "Only PDF files are supported" });
+    filePathToCleanup = file.path;
+    const fileStats = await fs.stat(file.path);
+    if (fileStats.size === 0) {
+      return res.status(400).json({ message: "Uploaded file is empty" });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      return res.status(400).json({ message: "File size exceeds 10MB limit" });
-    }
-
-    // Process PDF content
     let content = "";
-    try {
+
+    // ✅ Only handle text-based PDFs
+    if (file.mimetype === "application/pdf") {
       const buffer = await fs.readFile(file.path);
       const pdfData = await pdfParse(buffer);
       content = pdfData.text.trim();
-      
+
       if (!content) {
-        return res.status(400).json({ message: "PDF contains no extractable text" });
+        throw new Error("Empty PDF text. Only text-based PDFs are supported.");
       }
-    } catch (err) {
-      return res.status(400).json({ message: "Invalid PDF file" });
+    } else {
+      return res
+        .status(400)
+        .json({ message: "Only PDF files are supported." });
     }
 
-    // Validate and sanitize inputs
-    const title = validator.escape(body.title || "Untitled").substring(0, 255);
-    const category = validator.escape(body.category || "General").substring(0, 100);
-    
-    let tags = [];
-    if (body.tags) {
-      try {
-        tags = Array.isArray(body.tags) 
-          ? body.tags.map(tag => validator.escape(tag))
-          : JSON.parse(body.tags).map(tag => validator.escape(tag));
-      } catch (e) {
-        tags = [];
-      }
+    // Extract form fields
+    const {
+      title = "Untitled",
+      category = "General",
+      date,
+      tags = [],
+    } = req.body;
+
+    if (!title.trim() || !category.trim()) {
+      return res
+        .status(400)
+        .json({ message: "Title and category are required" });
     }
 
-    // Validate date or use current date
-    const date = body.date && !isNaN(new Date(body.date).getTime())
-      ? new Date(body.date).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0];
-
-    // Generate unique filename
-    const fileExt = path.extname(file.originalname);
-    const uniqueFilename = `${uuidv4()}${fileExt}`;
-    const finalFilePath = path.join(UPLOADS_DIR, uniqueFilename);
-
-    // Move file to permanent location
-    await fs.rename(file.path, finalFilePath);
-
-    // Create document record
     const newDoc = await Document.create({
-      userId: user.id,
+      userId,
       title,
       category,
-      date,
-      content,
-      tags,
-      fileName: uniqueFilename,
-      filePath: finalFilePath,
+      date: date || new Date().toISOString().split("T")[0],
+      content: content || "No content extracted.",
+      tags: Array.isArray(tags) ? tags : JSON.parse(tags || "[]"),
+      fileName: file.filename,
+      filePath: file.path,
     });
 
-    res.status(201).json({ 
-      success: true,
-      message: "Document uploaded successfully",
-      document: {
-        id: newDoc.id,
-        title: newDoc.title,
-        category: newDoc.category,
-        date: newDoc.date
-      }
-    });
-
+    console.log("Document uploaded:", newDoc.id);
+    res.status(201).json({ message: "Document uploaded", document: newDoc });
   } catch (err) {
-    console.error("Upload error:", err);
-    
-    // Cleanup temp file if error occurred
-    if (tempFilePath) {
-      fs.unlink(tempFilePath).catch(cleanupErr => 
-        console.error("Cleanup error:", cleanupErr)
-      );
+    console.error("Upload error:", err.message || err);
+    if (filePathToCleanup) {
+      await fs
+        .unlink(filePathToCleanup)
+        .catch((cleanupErr) =>
+          console.error("Cleanup error:", cleanupErr.message)
+        );
     }
-    
-    res.status(500).json({ 
-      success: false,
-      message: "Failed to process document" 
-    });
+    res.status(500).json({ message: `Server error: ${err.message}` });
   }
 };
+
 
 exports.getDocuments = async (req, res) => {
   try {
     const documents = await Document.findAll({
       where: { userId: req.user.id },
-      attributes: ['id', 'title', 'category', 'date', 'tags', 'createdAt']
     });
-    
-    res.json({ success: true, documents });
+    res.json(documents);
   } catch (err) {
     console.error("Fetch error:", err);
-    res.status(500).json({ 
-      success: false,
-      message: "Failed to fetch documents" 
-    });
+    res.status(500).json({ message: `Server error: ${err.message}` });
   }
 };
 
 exports.deleteDocument = async (req, res) => {
-  const transaction = await sequelize.transaction();
-
   try {
     const document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
-      transaction
     });
 
     if (!document) {
-      await transaction.rollback();
-      return res.status(404).json({ 
-        success: false,
-        message: "Document not found" 
-      });
+      return res.status(404).json({ message: "Document not found" });
     }
 
-    // Delete file
-    await fs.unlink(document.filePath)
-      .catch(err => console.error("File deletion warning:", err));
+    await fs
+      .unlink(document.filePath)
+      .catch((err) => console.error("File deletion error:", err));
+    await document.destroy();
 
-    // Delete record
-    await document.destroy({ transaction });
-    await transaction.commit();
-
-    res.json({ 
-      success: true,
-      message: "Document deleted successfully" 
-    });
-
+    res.status(200).json({ message: "Document deleted successfully" });
   } catch (err) {
-    await transaction.rollback();
     console.error("Delete error:", err);
-    res.status(500).json({ 
-      success: false,
-      message: "Failed to delete document" 
-    });
+    res.status(500).json({ message: `Server error: ${err.message}` });
   }
 };
 
 exports.downloadDocument = async (req, res) => {
   try {
     const document = await Document.findOne({
-      where: { id: req.params.id, userId: req.user.id }
+      where: { id: req.params.id, userId: req.user.id },
     });
 
     if (!document) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Document not found" 
-      });
+      return res.status(404).json({ message: "Document not found" });
     }
 
-    // Check file exists
-    try {
-      await fs.access(document.filePath);
-    } catch (err) {
-      return res.status(404).json({ 
-        success: false,
-        message: "File not found" 
-      });
-    }
+    const filePath = path.resolve(document.filePath);
+    await fs.access(filePath);
 
-    // Set headers
-    const filename = `${document.title}${path.extname(document.fileName)}`;
-    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
-    res.setHeader("Content-Type", "application/pdf");
-
-    // Stream file
-    const fileStream = fs.createReadStream(document.filePath);
-    fileStream.pipe(res);
-
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${document.fileName}"`
+    );
+    res.setHeader(
+      "Content-Type",
+      document.fileName.endsWith(".pdf") ? "application/pdf" : "image/*"
+    );
+    res.sendFile(filePath);
   } catch (err) {
     console.error("Download error:", err);
-    res.status(500).json({ 
-      success: false,
-      message: "Failed to download document" 
-    });
+    res.status(500).json({ message: `Server error: ${err.message}` });
   }
 };
