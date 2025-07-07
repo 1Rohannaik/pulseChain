@@ -28,3 +28,5 @@ dist/
 .DS_Store
 .idea/
 *.pem
+
+package-lock.json
