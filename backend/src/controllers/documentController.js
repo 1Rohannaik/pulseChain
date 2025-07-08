@@ -1,6 +1,6 @@
 const fs = require("fs").promises;
 const fsSync = require("fs");
-const path = require("path"); 
+const path = require("path");
 const axios = require("axios");
 const FormData = require("form-data");
 const Document = require("../models/documentModel");
@@ -15,13 +15,16 @@ exports.uploadDocument = async (req, res) => {
       return res.status(400).json({ message: "Only PDF files allowed" });
     }
 
-    // Prepare file to send to OCR microservice
+    // Prepare file for OCR.Space API
     const formData = new FormData();
     formData.append("file", fsSync.createReadStream(file.path));
+    formData.append("apikey", "K86286744788957"); // Your OCR.Space API key
+    formData.append("language", "eng");
+    formData.append("isOverlayRequired", "false");
 
-    // Send file to FastAPI OCR service
+    // Call OCR.Space API
     const ocrResponse = await axios.post(
-      "http://localhost:8000/extract-text", // Change to deployed OCR URL in production
+      "https://api.ocr.space/parse/image",
       formData,
       {
         headers: formData.getHeaders(),
@@ -29,12 +32,13 @@ exports.uploadDocument = async (req, res) => {
       }
     );
 
-    const content = ocrResponse.data?.document?.content?.trim();
+    // Extract text from response
+    const content = ocrResponse.data?.ParsedResults?.[0]?.ParsedText?.trim();
     if (!content) {
       throw new Error("No text extracted from PDF.");
     }
 
-    // Get metadata
+    // Extract metadata from request body
     const {
       title = "Untitled",
       category = "General",
@@ -42,7 +46,7 @@ exports.uploadDocument = async (req, res) => {
       tags = [],
     } = req.body;
 
-    // Create document in DB
+    // Create new document in DB
     const newDoc = await Document.create({
       userId,
       title: title.trim(),
@@ -62,9 +66,11 @@ exports.uploadDocument = async (req, res) => {
     console.error("Upload error:", err.message);
     res.status(500).json({
       message: "Upload failed. Try with a different PDF.",
+      error: err.message,
     });
   }
 };
+
 
 exports.getDocuments = async (req, res) => {
   try {
