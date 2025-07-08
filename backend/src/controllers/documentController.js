@@ -1,6 +1,6 @@
 const fs = require("fs").promises;
 const fsSync = require("fs");
-const path = require("path"); /
+const path = require("path"); 
 const axios = require("axios");
 const FormData = require("form-data");
 const Document = require("../models/documentModel");
