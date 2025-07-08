@@ -1,43 +1,40 @@
-const Document = require("../models/documentModel");
-const pdfParse = require("pdf-parse");
 const fs = require("fs").promises;
-const path = require("path");
+const fsSync = require("fs");
+const path = require("path"); /
+const axios = require("axios");
+const FormData = require("form-data");
+const Document = require("../models/documentModel");
 
 exports.uploadDocument = async (req, res) => {
-  let filePathToCleanup = null;
-
   try {
     const file = req.file;
     const userId = req.user.id;
 
-    if (!file) {
-      return res.status(400).json({ message: "No file uploaded" });
+    // Validate uploaded file
+    if (!file || file.mimetype !== "application/pdf") {
+      return res.status(400).json({ message: "Only PDF files allowed" });
     }
 
-    filePathToCleanup = file.path;
-    const fileStats = await fs.stat(file.path);
-    if (fileStats.size === 0) {
-      return res.status(400).json({ message: "Uploaded file is empty" });
-    }
+    // Prepare file to send to OCR microservice
+    const formData = new FormData();
+    formData.append("file", fsSync.createReadStream(file.path));
 
-    let content = "";
-
-    // ✅ Only handle text-based PDFs
-    if (file.mimetype === "application/pdf") {
-      const buffer = await fs.readFile(file.path);
-      const pdfData = await pdfParse(buffer);
-      content = pdfData.text.trim();
-
-      if (!content) {
-        throw new Error("Empty PDF text. Only text-based PDFs are supported.");
+    // Send file to FastAPI OCR service
+    const ocrResponse = await axios.post(
+      "http://localhost:8000/extract-text", // Change to deployed OCR URL in production
+      formData,
+      {
+        headers: formData.getHeaders(),
+        maxBodyLength: Infinity,
       }
-    } else {
-      return res
-        .status(400)
-        .json({ message: "Only PDF files are supported." });
+    );
+
+    const content = ocrResponse.data?.document?.content?.trim();
+    if (!content) {
+      throw new Error("No text extracted from PDF.");
     }
 
-    // Extract form fields
+    // Get metadata
     const {
       title = "Untitled",
       category = "General",
@@ -45,38 +42,29 @@ exports.uploadDocument = async (req, res) => {
       tags = [],
     } = req.body;
 
-    if (!title.trim() || !category.trim()) {
-      return res
-        .status(400)
-        .json({ message: "Title and category are required" });
-    }
-
+    // Create document in DB
     const newDoc = await Document.create({
       userId,
-      title,
-      category,
+      title: title.trim(),
+      category: category.trim(),
       date: date || new Date().toISOString().split("T")[0],
-      content: content || "No content extracted.",
+      content,
       tags: Array.isArray(tags) ? tags : JSON.parse(tags || "[]"),
       fileName: file.filename,
       filePath: file.path,
     });
 
-    console.log("Document uploaded:", newDoc.id);
-    res.status(201).json({ message: "Document uploaded", document: newDoc });
+    res.status(201).json({
+      message: "Document uploaded",
+      document: newDoc,
+    });
   } catch (err) {
-    console.error("Upload error:", err.message || err);
-    if (filePathToCleanup) {
-      await fs
-        .unlink(filePathToCleanup)
-        .catch((cleanupErr) =>
-          console.error("Cleanup error:", cleanupErr.message)
-        );
-    }
-    res.status(500).json({ message: `Server error: ${err.message}` });
+    console.error("Upload error:", err.message);
+    res.status(500).json({
+      message: "Upload failed. Try with a different PDF.",
+    });
   }
 };
-
 
 exports.getDocuments = async (req, res) => {
   try {
@@ -131,7 +119,7 @@ exports.downloadDocument = async (req, res) => {
     );
     res.setHeader(
       "Content-Type",
-      document.fileName.endsWith(".pdf") ? "application/pdf" : "image/*"
+      document.fileName.endsWith(".pdf") ? "application/pdf" : "application/octet-stream"
     );
     res.sendFile(filePath);
   } catch (err) {
