@@ -12,33 +12,50 @@ exports.uploadDocument = async (req, res) => {
 
     // Validate uploaded file
     if (!file || file.mimetype !== "application/pdf") {
-      return res.status(400).json({ message: "Only PDF files allowed" });
+      return res.status(400).json({ message: "Only PDF files allowed." });
     }
 
     // Prepare file for OCR.Space API
     const formData = new FormData();
     formData.append("file", fsSync.createReadStream(file.path));
-    formData.append("apikey", "K86286744788957"); // Your OCR.Space API key
+    formData.append("apikey", "K86286744788957");
     formData.append("language", "eng");
     formData.append("isOverlayRequired", "false");
 
-    // Call OCR.Space API
-    const ocrResponse = await axios.post(
-      "https://api.ocr.space/parse/image",
-      formData,
-      {
-        headers: formData.getHeaders(),
-        maxBodyLength: Infinity,
-      }
-    );
-
-    // Extract text from response
-    const content = ocrResponse.data?.ParsedResults?.[0]?.ParsedText?.trim();
-    if (!content) {
-      throw new Error("No text extracted from PDF.");
+    // OCR.Space API request
+    let ocrResponse;
+    try {
+      ocrResponse = await axios.post(
+        "https://api.ocr.space/parse/image",
+        formData,
+        {
+          headers: formData.getHeaders(),
+          maxBodyLength: Infinity,
+        }
+      );
+    } catch (ocrError) {
+      console.error(
+        "OCR API error:",
+        ocrError.response?.data || ocrError.message
+      );
+      return res.status(502).json({
+        message: "OCR processing failed. Please try again later.",
+        error: ocrError.message,
+      });
     }
 
-    // Extract metadata from request body
+    // Check OCR result structure
+    const parsedResult =
+      ocrResponse.data?.ParsedResults?.[0]?.ParsedText?.trim();
+    if (!parsedResult) {
+      console.error("OCR response:", JSON.stringify(ocrResponse.data, null, 2));
+      return res.status(400).json({
+        message: "No text extracted from the uploaded file.",
+        rawOCRResponse: ocrResponse.data,
+      });
+    }
+
+    // Metadata from request
     const {
       title = "Untitled",
       category = "General",
@@ -46,31 +63,39 @@ exports.uploadDocument = async (req, res) => {
       tags = [],
     } = req.body;
 
-    // Create new document in DB
+    let tagList;
+    try {
+      tagList = Array.isArray(tags) ? tags : JSON.parse(tags || "[]");
+    } catch (parseErr) {
+      return res.status(400).json({
+        message: "Invalid tags format. Must be an array or JSON string.",
+      });
+    }
+
+    // Save document in DB
     const newDoc = await Document.create({
       userId,
       title: title.trim(),
       category: category.trim(),
       date: date || new Date().toISOString().split("T")[0],
-      content,
-      tags: Array.isArray(tags) ? tags : JSON.parse(tags || "[]"),
+      content: parsedResult,
+      tags: tagList,
       fileName: file.filename,
       filePath: file.path,
     });
 
-    res.status(201).json({
-      message: "Document uploaded",
+    return res.status(201).json({
+      message: "Document uploaded successfully.",
       document: newDoc,
     });
   } catch (err) {
-    console.error("Upload error:", err.message);
-    res.status(500).json({
-      message: "Upload failed. Try with a different PDF.",
+    console.error("Upload error:", err);
+    return res.status(500).json({
+      message: "Internal server error. Upload failed.",
       error: err.message,
     });
   }
 };
-
 
 exports.getDocuments = async (req, res) => {
   try {
@@ -125,7 +150,7 @@ exports.downloadDocument = async (req, res) => {
     );
     res.setHeader(
       "Content-Type",
-      document.fileName.endsWith(".pdf") ? "application/pdf" : "application/octet-stream"
+      document.fileName.endsWith(".pdf") ? "application/pdf" : "image/*"
     );
     res.sendFile(filePath);
   } catch (err) {
