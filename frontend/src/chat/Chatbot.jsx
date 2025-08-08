@@ -42,7 +42,7 @@ const Chatbot = () => {
 
     try {
       const response = await axios.post(
-        "http://localhost:3000/api/v1/chat-bot",
+        "https://pulsechain.onrender.com/api/v1/chat-bot",
         { question: userMessage },
         { withCredentials: true } // ⚠️ Important: includes JWT cookie
       );

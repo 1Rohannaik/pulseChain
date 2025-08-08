@@ -21,7 +21,7 @@ function EmergencyAccessPage() {
     const fetchPatientData = async () => {
       try {
         const res = await fetch(
-          `http://localhost:3000/api/v1/emergency/info-from-token?token=${token}`
+          `https://pulsechain.onrender.com/api/v1/emergency/info-from-token?token=${token}`
         );
         if (!res.ok) throw new Error("Invalid or expired QR token");
         const data = await res.json();

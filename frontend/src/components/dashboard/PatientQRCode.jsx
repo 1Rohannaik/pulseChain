@@ -23,7 +23,7 @@ function PatientQRCode() {
         return;
       }
 
-      const qrApiUrl = `http://localhost:3000/api/v1/qr/${currentUser.id}`;
+      const qrApiUrl = `https://pulsechain.onrender.com/api/v1/qr/${currentUser.id}`;
       try {
         const response = await fetch(qrApiUrl, {
           method: "GET",
