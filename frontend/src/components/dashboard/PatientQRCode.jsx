@@ -40,7 +40,7 @@ function PatientQRCode() {
         const data = await response.json();
         setQrCodeDataUrl(data.qrCode || "");
         setEmergencyUrl(
-          `http://localhost:5173/emergency/access?token=${data.token}`
+          `https://pulsechain-1.onrender.com/emergency/access?token=${data.token}`
         );
         setSecondsLeft(300); // Reset countdown to 5 minutes after successful fetch
       } catch (err) {

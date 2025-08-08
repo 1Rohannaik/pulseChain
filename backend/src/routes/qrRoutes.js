@@ -10,7 +10,7 @@ router.get("/:userId", async (req, res) => {
     expiresIn: "5m",
   });
 
-  const qrUrl = `http://localhost:5173/emergency/access?token=${token}`;
+  const qrUrl = `https://pulsechain-1.onrender.com/emergency/access?token=${token}`;
 
   try {
     const qrDataURL = await QRCode.toDataURL(qrUrl);
