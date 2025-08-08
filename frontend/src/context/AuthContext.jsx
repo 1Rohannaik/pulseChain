@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
     const checkAuth = async () => {
       try {
         const response = await fetch(
-          "https://pulsechain.onrender.com/api/v1/users/check",
+          "http://localhost:3000/api/v1/users/check",
           {
             method: "GET",
             credentials: "include", // Include cookies for JWT
@@ -44,17 +44,14 @@ export function AuthProvider({ children }) {
   // Login function
   const login = async (email, password) => {
     try {
-      const response = await fetch(
-        "https://pulsechain.onrender.com/api/v1/users/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include", // Include cookies for JWT
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      const response = await fetch("http://localhost:3000/api/v1/users/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Include cookies for JWT
+        body: JSON.stringify({ email, password }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -93,7 +90,7 @@ export function AuthProvider({ children }) {
       }
 
       const response = await fetch(
-        "https://pulsechain.onrender.com/api/v1/users/signup",
+        "http://localhost:3000/api/v1/users/signup",
         {
           method: "POST",
           headers: {
@@ -122,7 +119,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       const response = await fetch(
-        "https://pulsechain.onrender.com/api/v1/users/logout",
+        "http://localhost:3000/api/v1/users/logout",
         {
           method: "POST",
           credentials: "include", // Include cookies for JWT

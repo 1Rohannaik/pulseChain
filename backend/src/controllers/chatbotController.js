@@ -56,8 +56,7 @@ const handleChat = async (req, res) => {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
-          "HTTP-Referer":
-            req.headers.origin || "https://pulsechain.onrender.com",
+          "HTTP-Referer": req.headers.origin || "http://localhost:3000",
           "X-Title": "Medical-Chat-Service",
         },
         timeout: 10000,
