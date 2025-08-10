@@ -1,11 +1,14 @@
 const bcrypt = require("bcryptjs");
 const { generateToken } = require("../lib/utilis");
 const User = require("../models/userModel");
-const { signupSchema } = require("../../utils/validation")
+const { signupSchema } = require("../../utils/validation");
+const cache = require("../lib/cacheHelper");
 
-
+// SIGNUP
 const signup = async (req, res) => {
   try {
+    const redis = req.app.locals.redis;
+
     // Joi schema validation
     const { error, value } = signupSchema.validate(req.body);
     if (error) {
@@ -14,17 +17,14 @@ const signup = async (req, res) => {
 
     const { fullName, email, password, role, licenseId } = value;
 
-    // Check if the email already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create the new user
     const newUser = await User.create({
       fullName,
       email,
@@ -35,6 +35,11 @@ const signup = async (req, res) => {
 
     if (newUser) {
       generateToken(newUser.id, res);
+
+      // Invalidate any user list cache
+      await cache.delSafe(redis, `user:${newUser.id}`);
+      await cache.delSafe(redis, "users:all");
+
       return res.status(201).json({
         id: newUser.id,
         fullName: newUser.fullName,
@@ -50,13 +55,24 @@ const signup = async (req, res) => {
   }
 };
 
-
-
 // LOGIN
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ where: { email } });
+    const redis = req.app.locals.redis;
+    const cacheKey = cache.hashKey("userByEmail", email);
+
+    // Try cache first
+    let user = await cache.getSafe(redis, cacheKey);
+    if (user) {
+      console.log("Serving user from cache");
+      user = JSON.parse(user);
+    } else {
+      user = await User.findOne({ where: { email } });
+      if (user) {
+        await cache.setSafe(redis, cacheKey, 3600, JSON.stringify(user));
+      }
+    }
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -68,6 +84,8 @@ const login = async (req, res) => {
     }
 
     generateToken(user.id, res);
+
+    await cache.setSafe(redis, `user:${user.id}`, 3600, JSON.stringify(user));
 
     res.status(200).json({
       id: user.id,
@@ -81,9 +99,16 @@ const login = async (req, res) => {
 };
 
 // LOGOUT
-const logout = (req, res) => {
+const logout = async (req, res) => {
   try {
+    const redis = req.app.locals.redis;
+
     res.cookie("jwt", "", { maxAge: 0 });
+
+    if (req.user?.id) {
+      await cache.delSafe(redis, `user:${req.user.id}`);
+    }
+
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.error("Error in logout controller", error.message);
@@ -92,9 +117,23 @@ const logout = (req, res) => {
 };
 
 // CHECK AUTH
-const checkAuth = (req, res) => {
+const checkAuth = async (req, res) => {
   try {
-    res.status(200).json(req.user);
+    const redis = req.app.locals.redis;
+    const cacheKey = `user:${req.user.id}`;
+
+    let cachedUser = await cache.getSafe(redis, cacheKey);
+    if (cachedUser) {
+      console.log("Serving checkAuth from cache");
+      return res.status(200).json(JSON.parse(cachedUser));
+    }
+
+    const freshUser = await User.findByPk(req.user.id);
+    if (freshUser) {
+      await cache.setSafe(redis, cacheKey, 3600, JSON.stringify(freshUser));
+    }
+
+    res.status(200).json(freshUser);
   } catch (error) {
     console.error("Error in checkAuth controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });

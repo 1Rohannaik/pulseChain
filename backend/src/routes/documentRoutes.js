@@ -9,7 +9,7 @@ const {
   downloadDocument,
 } = require("../controllers/documentController");
 
-router.post("/upload", protectRoute, upload.single("file"), uploadDocument);
+router.post("/upload", protectRoute,upload.single("file"), uploadDocument);
 router.get("/", protectRoute, getDocuments);
 router.delete("/:id", protectRoute, deleteDocument);
 router.get("/:id/download", protectRoute, downloadDocument);

@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
           "https://pulsechain.onrender.com/api/v1/users/check",
           {
             method: "GET",
-            credentials: "include", // Include cookies for JWT
+            credentials: "include",
           }
         );
         if (response.ok) {
