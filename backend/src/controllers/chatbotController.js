@@ -1,10 +1,8 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const cache = require("../lib/cacheHelper");
-
-const CACHE_TTL = 3600; // 1 hour
 
 const handleChat = async (req, res) => {
+  // ✅ 1. Support cookie *or* Authorization header
   const authHeader = req.headers.authorization;
   const token =
     req.cookies.jwt ||
@@ -15,34 +13,22 @@ const handleChat = async (req, res) => {
   }
 
   try {
-    // 1. Verify JWT
+    // 2. Verify JWT
     jwt.verify(token, process.env.JWT_SECRET);
 
-    // 2. Validate question
+    // 3. Validate question
     const { question } = req.body;
     if (!question || typeof question !== "string") {
       return res.status(400).json({ error: "Valid question required" });
     }
 
-    // 3. Only allow medical questions
+    // 4. Filter only medical questions
     if (!isMedicalQuestion(question)) {
       return res.json({
         answer:
           "As a medical assistant, I can only discuss health-related topics.",
       });
     }
-
-    const redis = req.app.locals.redis;
-    const cacheKey = cache.hashKey("chat", question.toLowerCase());
-
-    // 4. Try Redis cache first
-    const cachedAnswer = await cache.getSafe(redis, cacheKey);
-    if (cachedAnswer) {
-      console.log(` Cache hit for: ${question}`);
-      return res.json({ answer: cachedAnswer, cached: true });
-    }
-
-    console.log(`Cache miss for: ${question}`);
 
     // 5. Call OpenRouter API
     const response = await axios.post(
@@ -58,7 +44,10 @@ const handleChat = async (req, res) => {
             3. Always recommend doctor consultation
             4. For non-medical: "I specialize only in medical topics"`,
           },
-          { role: "user", content: question },
+          {
+            role: "user",
+            content: question,
+          },
         ],
         temperature: 0.3,
         max_tokens: 300,
@@ -81,10 +70,7 @@ const handleChat = async (req, res) => {
       throw new Error("Invalid response from AI service");
     }
 
-    // 6. Store in Redis
-    await cache.setSafe(redis, cacheKey, CACHE_TTL, answer);
-
-    return res.json({ answer, cached: false });
+    return res.json({ answer });
   } catch (error) {
     console.error("Chat error:", error);
 
@@ -112,7 +98,7 @@ const handleChat = async (req, res) => {
   }
 };
 
-//  Utility: detect if question is medical
+// ✅ Utility to detect medical relevance
 function isMedicalQuestion(text) {
   if (typeof text !== "string") return false;
 
@@ -155,8 +141,8 @@ function isMedicalQuestion(text) {
     "anxiety",
   ];
 
-  const q = text.toLowerCase();
-  return medicalTerms.some((term) => q.includes(term));
+  const question = text.toLowerCase();
+  return medicalTerms.some((term) => question.includes(term));
 }
 
 module.exports = { handleChat };

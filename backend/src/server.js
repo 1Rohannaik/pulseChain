@@ -6,18 +6,15 @@ require("dotenv").config();
 const cookieParser = require("cookie-parser");
 const errorHandler = require("./lib/error");
 const sequelize = require("./lib/db");
-const session = require("./middleware/sessionMiddleware");
-const limiter = require("./middleware/rateLimiter");
-const redisClient = require("./lib/redis");
 
-// Attach redis client to app.locals for use in controllers
-app.locals.redis = redisClient;
-
-// Models
+// Load all models BEFORE associations
 require("./models/userModel");
 require("./models/documentModel");
 require("./models/emergencyModel");
-require("./models/initAssociations")();
+
+// Setup associations between models
+const initAssociations = require("./models/initAssociations");
+initAssociations(); // e.g., User.hasMany(EmergencyContact), etc.
 
 // Routes
 const authRoutes = require("./routes/authRoutes");
@@ -27,30 +24,32 @@ const documentRoutes = require("./routes/documentRoutes");
 const emergencyRoutes = require("./routes/emergencyRoutes");
 const chatbotRoutes = require("./routes/chatbotRoutes");
 
+// CORS Middleware
 app.use(
   cors({
-    origin: ["https://pulsechain-1.onrender.com"],
+    origin: ["http://localhost:5173", "https://pulsechain-1.onrender.com"],
     credentials: true,
   })
 );
 
+// Middleware
 app.use(express.json());
 app.use(cookieParser());
 
-app.use(session);
-
-// API routes
-app.use("/api/v1/users", limiter, authRoutes);
-app.use("/api/v1/profile", limiter, profileRoutes);
-app.use("/api/v1/qr", limiter, qrRoutes);
+// Mount API route handlers
+app.use("/api/v1/users", authRoutes);
+app.use("/api/v1/profile", profileRoutes);
+app.use("/api/v1/qr", qrRoutes);
 app.use("/api/v1/documents", documentRoutes);
-app.use("/api/v1/emergency", limiter, emergencyRoutes);
-app.use("/api/v1/chat-bot", limiter, chatbotRoutes);
+app.use("/api/v1/emergency", emergencyRoutes);
+app.use("/api/v1/chat-bot", chatbotRoutes);
 
+// Global error handler
 app.use(errorHandler);
 
+// Connect to DB and Start Server
 sequelize
-  .sync()
+  .sync() 
   .then(() => {
     console.log("DB connected successfully");
     app.listen(port, () => {
@@ -58,5 +57,5 @@ sequelize
     });
   })
   .catch((err) => {
-    console.error("DB connection failed:", err);
+    console.error(" DB connection failed:", err);
   });
